@@ -1,0 +1,3 @@
+{
+  "_todo": "Export workflow n8n asli dengan perintah: n8n export:workflow --all --output=backup/ lalu tempel JSON hasilnya di sini. WAJIB hapus/anonimkan semua credential sebelum commit."
+}
