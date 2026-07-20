@@ -1,5 +1,16 @@
-# Screenshots
-Tambahkan gambar berikut ke folder ini (unggah manual):
-- wazuh-dashboard.png — tampilan alert di dashboard Wazuh
-- n8n-workflow.png — canvas workflow n8n (Webhook -> Code -> If -> AbuseIPDB -> Telegram)
-- telegram-alert.png — notifikasi alert di HP via Telegram
+## 📸 Screenshots
+
+### Wazuh SIEM Dashboard
+Alert real-time terklasifikasi per severity (Critical/High/Medium/Low).
+
+![Wazuh Dashboard](screenshots/Screenshot%202026-07-20%20095018.png)
+
+### n8n SOAR Workflow
+Pipeline otomatis: Wazuh webhook → parsing → cek IP privat → enrichment AbuseIPDB → notifikasi Telegram.
+
+![n8n Workflow](screenshots/Screenshot%202026-07-20%20094940.png)
+
+### Telegram Alert Notification
+Alert terkirim ke analis, lengkap dengan hasil enrichment (internal vs AbuseIPDB).
+
+![Telegram Alert](screenshots/Screenshot%202026-07-20%20094536.png)
