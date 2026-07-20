@@ -1,3 +1,245 @@
 {
-  "_todo": "Export workflow n8n asli dengan perintah: n8n export:workflow --all --output=backup/ lalu tempel JSON hasilnya di sini. WAJIB hapus/anonimkan semua credential sebelum commit."
+  "name": "SOC-014 Wazuh Alert — Enrichment & Telegram Notification",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wazuh-alert",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ba2c7794-874a-448a-819e-6087038ac510",
+      "name": "SOC-014 Wazuh Alert",
+      "webhookId": "bc741445-942f-4113-8ab0-f6d10df1df98"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst w = raw.body ?? raw;\nconst a = w.all_fields ?? w;\n\nconst rule = a.rule ?? {};\nconst md = rule.mitre ?? {};\nconst agent = a.agent ?? {};\nconst data = a.data ?? {};\nconst ed = data.win?.eventdata ?? {};\n\nconst source_ip =\n  ed.ipAddress ?? data.srcip ?? data.src_ip ?? ed.sourceIp ?? null;\n\n// --- SOC-015: deteksi IP privat (RFC1918 + loopback + link-local) ---\nconst ip = source_ip ?? \"\";\nconst is_private =\n  ip === \"\" ||\n  /^(10\\.|127\\.|169\\.254\\.|192\\.168\\.|172\\.(1[6-9]|2\\d|3[01])\\.)/.test(ip);\n\nreturn [{\n  json: {\n    timestamp: a.timestamp ?? w.timestamp ?? null,\n    rule_id: rule.id ?? w.rule_id ?? null,\n    rule_level: rule.level ?? null,\n    rule_desc: rule.description ?? w.title ?? null,\n    mitre_id: md.id ?? null,\n    mitre_technique: md.technique ?? null,\n    agent_name: agent.name ?? null,\n    agent_ip: agent.ip ?? null,\n    source_ip,\n    is_private,\n    command_line: ed.commandLine ?? null,\n    full_log: a.full_log ?? w.text ?? null,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "d1315839-bf3f-437e-b891-d6833c3bb288",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "https://api.abuseipdb.com/api/v2/check",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ipAddress",
+              "value": "={{ $json.source_ip }}"
+            },
+            {
+              "name": "maxAgeInDays",
+              "value": "90"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        624,
+        0
+      ],
+      "id": "c68bf8bd-30f9-4e6a-9d54-e98feb2e562a",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "__REDACTED__",
+          "name": "AbuseIPDB Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "57edb641-1e37-475b-9d12-e0b0972ba579",
+              "leftValue": "={{ $json.is_private }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "a44618bd-1152-4e93-853a-4707da23d8d9",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Data dari AbuseIPDB (node sebelumnya = HTTP Request)\nconst abuse = $input.first().json.data ?? {};\n// Alert asli dari Code node (referensi by name)\nconst alert = $('Code in JavaScript').item.json;\n\nconst score = abuse.abuseConfidenceScore ?? 0;\n\nreturn [{\n  json: {\n    ...alert,\n    enrichment: \"abuseipdb\",\n    abuse_score: score,\n    abuse_country: abuse.countryCode ?? null,\n    abuse_isp: abuse.isp ?? null,\n    abuse_domain: abuse.domain ?? null,\n    abuse_total_reports: abuse.totalReports ?? null,\n    abuse_whitelisted: abuse.isWhitelisted ?? null,\n    is_malicious: score >= 50,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        0
+      ],
+      "id": "8d8461dc-3495-4faf-995a-ccda16dfcfec",
+      "name": "Enrich Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "const alert = $input.first().json;\nreturn [{\n  json: {\n    ...alert,\n    enrichment: \"internal_lab\",\n    abuse_score: null,\n    is_malicious: false,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        224
+      ],
+      "id": "bdd0793f-1c95-4dc7-b700-9cd47551fad4",
+      "name": "Label Internal"
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=🚨 SOC Lab Alert\nRule ID   : {{ $json.rule_id }} (level {{ $json.rule_level }})\nSource IP : {{ $json.source_ip }}\nEnrichment: {{ $json.enrichment }}\nAbuseIPDB : {{ $json.abuse_score ?? \"N/A (internal)\" }}\nCountry   : {{ $json.abuse_country ?? \"-\" }}\nISP       : {{ $json.abuse_isp ?? \"-\" }}\nMalicious : {{ $json.is_malicious }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "6dc506f7-385d-4569-8433-c3665449aa45",
+      "name": "Send a text message",
+      "webhookId": "4c118979-aef2-4130-be61-346682707ebe",
+      "credentials": {
+        "telegramApi": {
+          "id": "__REDACTED__",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "SOC-014 Wazuh Alert": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Label Internal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Enrich Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich Merge": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Label Internal": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  }
 }
