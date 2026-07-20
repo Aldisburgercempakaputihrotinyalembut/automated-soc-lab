@@ -39,8 +39,8 @@ See docs/architecture.md for the full data-flow diagram.
 ## Custom Detection Rules
 | Rule ID | Detects | Level | MITRE |
 |---|---|---|---|
-| 100100 | Windows discovery commands (whoami, net, ipconfig) | 12 | Discovery (T1059) |
-| 100200 | Encoded PowerShell (non-WMI) | 12 | T1059.001 |
+| 100100 | Windows discovery commands (whoami, net, systeminfo, tasklist) | 12 | Discovery (T1087, T1082, T1057, T1033) |
+| 100200 | Encoded PowerShell (non-WMI) | 12 | T1059.001, T1027 |
 | 100300 | Authentication brute force | 12 | T1110 |
 
 ## Repository Structure
