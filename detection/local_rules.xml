@@ -1,1 +1,66 @@
-<!-- TODO (isi oleh pemilik repo): tempel isi ASLI dari /var/ossec/etc/rules/local_rules.xml di sini. Berisi rules 100100 (discovery), 100101 (false-positive sub-rule), 100200 (encoded PowerShell), 100300 (brute force). Jangan sertakan data sensitif. -->
+<!-- Local rules -->
+
+<!-- Modify it at your will. -->
+<!-- Copyright (C) 2015, Wazuh Inc. -->
+
+<!-- Example -->
+<group name="local,sysmon,execution,">
+
+  <!-- SOC-011b Rule #2 - Encoded PowerShell tanpa induk WMI -->
+  <rule id="100200" level="12">
+    <if_group>sysmon_eid1_detections</if_group>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\(powershell|pwsh)\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)\s-e(c|nc|ncodedcommand)?\s+[A-Za-z0-9+/=]{20,}</field>
+    <description>Encoded PowerShell command-line terdeteksi tanpa induk WMI (SOC-011b rule #2)</description>
+    <mitre>
+      <id>T1059.001</id>
+      <id>T1027</id>
+    </mitre>
+    <group>execution,defense_evasion,</group>
+  </rule>
+
+</group>
+
+<!-- SOC-011b Rule #1 - Discovery command-line chain (dipulihkan dari .bak-20260713-2003) -->
+<group name="local,sysmon,discovery,">
+
+  <rule id="100100" level="12">
+    <if_group>sysmon_eid1_detections</if_group>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(net1?\s+(user|localgroup|group|accounts|view)|whoami|systeminfo|tasklist|quser|qwinsta|nltest)</field>
+    <description>Discovery command-line chain terdeteksi (SOC-011b rule #1)</description>
+    <mitre>
+      <id>T1087</id>
+      <id>T1082</id>
+      <id>T1057</id>
+      <id>T1033</id>
+    </mitre>
+    <group>discovery,</group>
+  </rule>
+
+</group>
+
+<!-- SOC-011b Rule #4 - Eskalasi brute-force login gagal ke High -->
+<group name="local,windows,authentication_failures,">
+
+  <rule id="100300" level="12">
+    <if_sid>60204</if_sid>
+    <description>Brute-force logon (Multiple Windows Logon Failures) tereskalasi High (SOC-011b rule #4)</description>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+    <group>authentication_failures,</group>
+  </rule>
+
+</group>
+
+<!-- SOC-011b Rule #1 tuning (14 Jul) - suppress FP: discovery command-line yang di-spawn oleh Wazuh agent sendiri (wazuh-agent.exe, SYSTEM) saat SCA/inventory. Tidak mengecualikan SYSTEM/0x3e7 umum; hanya induk wazuh-agent.exe. -->
+<group name="local,sysmon,discovery,">
+
+  <rule id="100101" level="0">
+    <if_sid>100100</if_sid>
+    <field name="win.eventdata.currentDirectory" type="pcre2">(?i)ossec-agent</field>
+    <description>Discovery command-line dari wazuh-agent.exe (aktivitas internal agent SCA/inventory) - FP suppressed (SOC-011b rule #1 tuning)</description>
+    <group>discovery,fp_tuning,</group>
+  </rule>
+
+</group>
